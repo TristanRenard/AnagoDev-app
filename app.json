@@ -1,6 +1,9 @@
 {
   "expo": {
     "name": "anagodev-app",
+    "extra": {
+      "apiUrl": "https://anagodev.com"
+    },
     "slug": "anagodev-app",
     "version": "1.0.0",
     "orientation": "portrait",
