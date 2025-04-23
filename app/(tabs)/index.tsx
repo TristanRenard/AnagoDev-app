@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import NetInfo from '@react-native-community/netinfo'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -8,6 +10,17 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 const url = Constants.expoConfig?.extra?.apiUrl
 const { width } = Dimensions.get('window')
 const PRODUCT_IMAGE_WIDTH = width * 0.35  // 35% of screen width for product images
+
+// Cache keys
+const CACHE_KEYS = {
+  CATEGORIES: 'app_categories',
+  CATEGORY_PRODUCTS: 'app_category_products_',
+  CACHE_TIMESTAMP: 'app_cache_timestamp',
+  IMAGES: 'app_images_'
+}
+
+// Cache expiration in milliseconds (24 hours)
+const CACHE_EXPIRATION = 24 * 60 * 60 * 1000
 
 type Price = {
   id: number
@@ -57,6 +70,37 @@ type ProductImageProps = {
 }
 
 const ProductImage = ({ images, productId }: ProductImageProps) => {
+  const [imageUri, setImageUri] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!images || images.length === 0) return
+
+      try {
+        // Try to get cached image first
+        const cachedImage = await AsyncStorage.getItem(`${CACHE_KEYS.IMAGES}${images[0]}`)
+        if (cachedImage) {
+          setImageUri(cachedImage)
+          return
+        }
+
+        // If not cached, use the network image
+        setImageUri(`${url}${images[0]}`)
+
+        // Cache the image URL for offline use
+        if (url && images[0]) {
+          // We're just caching the URL here, in a real app you might want 
+          // to download and cache the actual image data
+          await AsyncStorage.setItem(`${CACHE_KEYS.IMAGES}${images[0]}`, `${url}${images[0]}`)
+        }
+      } catch (error) {
+        console.error('Error loading image:', error)
+      }
+    }
+
+    loadImage()
+  }, [images])
+
   // Guard against empty images
   if (!images || images.length === 0) {
     return (
@@ -69,7 +113,7 @@ const ProductImage = ({ images, productId }: ProductImageProps) => {
   // Display only the first image
   return (
     <Image
-      source={{ uri: `${url}${images[0]}` }}
+      source={{ uri: imageUri || `${url}${images[0]}` }}
       className="rounded-lg"
       style={{ width: PRODUCT_IMAGE_WIDTH, height: PRODUCT_IMAGE_WIDTH }}
       resizeMode="cover"
@@ -145,70 +189,227 @@ const Home = () => {
   const [categoryProducts, setCategoryProducts] = useState<Record<number, Product[]>>({})
   const [loadingProducts, setLoadingProducts] = useState<Record<number, boolean>>({})
   const [error, setError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState<boolean | null>(true)
+  const [isOfflineMode, setIsOfflineMode] = useState(false)
+
+  // Check network connection
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(state.isConnected)
+      if (!state.isConnected) {
+        setIsOfflineMode(true)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   // Navigation to product detail
   const goToProductDetail = (productId: number) => {
     router.push(`/product/${productId}`)
   }
 
-  // Fetch products for a specific category
+  // Cache utility functions
+  const saveToCache = async (key: string, data: any) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(data))
+      // Update timestamp when cache is updated
+      await AsyncStorage.setItem(CACHE_KEYS.CACHE_TIMESTAMP, Date.now().toString())
+    } catch (error) {
+      console.error(`Error saving to cache (${key}):`, error)
+    }
+  }
+
+  const getFromCache = async (key: string) => {
+    try {
+      const cachedData = await AsyncStorage.getItem(key)
+      return cachedData ? JSON.parse(cachedData) : null
+    } catch (error) {
+      console.error(`Error getting from cache (${key}):`, error)
+      return null
+    }
+  }
+
+  const isCacheValid = async () => {
+    try {
+      const timestamp = await AsyncStorage.getItem(CACHE_KEYS.CACHE_TIMESTAMP)
+      if (!timestamp) return false
+
+      const cacheAge = Date.now() - parseInt(timestamp)
+      return cacheAge < CACHE_EXPIRATION
+    } catch (error) {
+      console.error('Error checking cache validity:', error)
+      return false
+    }
+  }
+
+  // Fetch products for a specific category with caching
   const fetchProductsByCategory = async (categoryId: number) => {
-    if (!url) return
+    if (!url && !isOfflineMode) return
 
     setLoadingProducts(prev => ({ ...prev, [categoryId]: true }))
+
     try {
-      const response = await fetch(`${url}/api/products?category=${categoryId}`)
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`)
+      // First check if we have cached data for this category
+      const cachedProducts = await getFromCache(`${CACHE_KEYS.CATEGORY_PRODUCTS}${categoryId}`)
+
+      // If we're offline or cache is valid, use cached data
+      if ((isOfflineMode || !(await isCacheValid())) && cachedProducts) {
+        setCategoryProducts(prev => ({ ...prev, [categoryId]: cachedProducts }))
+        setLoadingProducts(prev => ({ ...prev, [categoryId]: false }))
+        return
       }
-      const data = await response.json()
-      setCategoryProducts(prev => ({ ...prev, [categoryId]: data }))
+
+      // If we're online, fetch fresh data
+      if (isConnected) {
+        const response = await fetch(`${url}/api/products?category=${categoryId}`)
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`)
+        }
+        const data = await response.json()
+
+        // Update state and cache
+        setCategoryProducts(prev => ({ ...prev, [categoryId]: data }))
+        await saveToCache(`${CACHE_KEYS.CATEGORY_PRODUCTS}${categoryId}`, data)
+      } else if (cachedProducts) {
+        // Use cached data if offline and we have it
+        setCategoryProducts(prev => ({ ...prev, [categoryId]: cachedProducts }))
+      } else {
+        // No cached data and offline
+        setCategoryProducts(prev => ({ ...prev, [categoryId]: [] }))
+      }
     } catch (error) {
       console.error(`Error fetching products for category ${categoryId}:`, error)
+
+      // Try to use cached data on error
+      const cachedProducts = await getFromCache(`${CACHE_KEYS.CATEGORY_PRODUCTS}${categoryId}`)
+      if (cachedProducts) {
+        setCategoryProducts(prev => ({ ...prev, [categoryId]: cachedProducts }))
+      }
     } finally {
       setLoadingProducts(prev => ({ ...prev, [categoryId]: false }))
     }
   }
 
-  // Fetch all categories
+  // Fetch all categories with caching
   useEffect(() => {
     const fetchCategories = async () => {
-      if (!url) return
-
       setLoadingCategories(true)
+
       try {
-        const response = await fetch(`${url}/api/categories`)
-        if (!response.ok) {
-          console.error('Error fetching categories:', response)
-          throw new Error(`Error: ${response.status}`)
+        // First check if we have cached categories
+        const cachedCategories = await getFromCache(CACHE_KEYS.CATEGORIES)
+
+        // If offline or cache is valid, use cached data
+        if ((isOfflineMode || !(await isCacheValid())) && cachedCategories) {
+          setCategories(cachedCategories)
+
+          // Initialize loading state for each category
+          const initialLoadingState: Record<number, boolean> = {}
+          cachedCategories.forEach((cat: Category) => {
+            initialLoadingState[cat.id] = true
+          })
+          setLoadingProducts(initialLoadingState)
+
+          // Fetch products for each category
+          cachedCategories.forEach((category: Category) => {
+            fetchProductsByCategory(category.id)
+          })
+
+          setLoadingCategories(false)
+          return
         }
-        const data = await response.json()
 
-        // Sort categories by order field
-        const sortedCategories = data.sort((a: Category, b: Category) => a.order - b.order)
-        setCategories(sortedCategories)
+        // If we're online, fetch fresh data
+        if (isConnected && url) {
+          const response = await fetch(`${url}/api/categories`)
+          if (!response.ok) {
+            throw new Error(`Error: ${response.status}`)
+          }
+          const data = await response.json()
 
-        // Initialize loading state for each category
-        const initialLoadingState: Record<number, boolean> = {}
-        sortedCategories.forEach((cat: Category) => {
-          initialLoadingState[cat.id] = true
-        })
-        setLoadingProducts(initialLoadingState)
+          // Sort categories by order field
+          const sortedCategories = data.sort((a: Category, b: Category) => a.order - b.order)
 
-        // Fetch products for each category
-        sortedCategories.forEach((category: Category) => {
-          fetchProductsByCategory(category.id)
-        })
+          // Update state and cache
+          setCategories(sortedCategories)
+          await saveToCache(CACHE_KEYS.CATEGORIES, sortedCategories)
+
+          // Initialize loading state for each category
+          const initialLoadingState: Record<number, boolean> = {}
+          sortedCategories.forEach((cat: Category) => {
+            initialLoadingState[cat.id] = true
+          })
+          setLoadingProducts(initialLoadingState)
+
+          // Fetch products for each category
+          sortedCategories.forEach((category: Category) => {
+            fetchProductsByCategory(category.id)
+          })
+        } else if (cachedCategories) {
+          // Use cached data if offline and we have it
+          setCategories(cachedCategories)
+
+          // Initialize loading state for each category
+          const initialLoadingState: Record<number, boolean> = {}
+          cachedCategories.forEach((cat: Category) => {
+            initialLoadingState[cat.id] = true
+          })
+          setLoadingProducts(initialLoadingState)
+
+          // Fetch products for each category (will use cache)
+          cachedCategories.forEach((category: Category) => {
+            fetchProductsByCategory(category.id)
+          })
+        } else {
+          // No cached data and offline
+          setError('Pas de connexion internet et aucune donnée en cache')
+        }
       } catch (error) {
         console.error('Error fetching categories:', error)
-        setError('Impossible de charger les catégories')
+
+        // Try to use cached categories on error
+        const cachedCategories = await getFromCache(CACHE_KEYS.CATEGORIES)
+        if (cachedCategories) {
+          setCategories(cachedCategories)
+
+          // Initialize loading state for each category
+          const initialLoadingState: Record<number, boolean> = {}
+          cachedCategories.forEach((cat: Category) => {
+            initialLoadingState[cat.id] = true
+          })
+          setLoadingProducts(initialLoadingState)
+
+          // Fetch products for each category (will use cache)
+          cachedCategories.forEach((category: Category) => {
+            fetchProductsByCategory(category.id)
+          })
+        } else {
+          setError('Impossible de charger les catégories')
+        }
       } finally {
         setLoadingCategories(false)
       }
     }
 
     fetchCategories()
-  }, [])
+  }, [isConnected])
+
+  // Clear local cache function (for reference, you might want to add this to settings)
+  const clearLocalCache = async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys()
+      const cacheKeys = keys.filter(key =>
+        key.startsWith(CACHE_KEYS.CATEGORIES) ||
+        key.startsWith(CACHE_KEYS.CATEGORY_PRODUCTS) ||
+        key.startsWith(CACHE_KEYS.IMAGES)
+      )
+      await AsyncStorage.multiRemove(cacheKeys)
+      console.log('Cache cleared successfully')
+    } catch (error) {
+      console.error('Error clearing cache:', error)
+    }
+  }
 
   if (loadingCategories && !categories.length) {
     return (
@@ -239,6 +440,11 @@ const Home = () => {
         {/* Header */}
         <View className="flex w-full items-center justify-start py-4">
           <Image source={{ uri: `${url}/api/backoffice/files/cyna%20-%20logo%20-%20mix.png` }} className='h-[61.5px] w-[225px]' />
+          {isOfflineMode && (
+            <View className="bg-yellow-100 px-3 py-1 rounded-md mt-2">
+              <Text className="text-yellow-800">Mode hors connexion</Text>
+            </View>
+          )}
         </View>
 
         {/* Categories with products */}
@@ -276,7 +482,7 @@ const Home = () => {
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={{ paddingLeft: 16, paddingRight: 8 }}
                     >
-                      {products.map((product) => (
+                      {products.filter((product) => product.category?.id === category.id).map((product) => (
                         <ProductItem
                           key={`product-${product.id}`}
                           product={product}
