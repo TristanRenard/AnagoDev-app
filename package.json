@@ -43,6 +43,7 @@
     "react-native": "0.76.9",
     "react-native-css-interop": "^0.1.18",
     "react-native-gesture-handler": "~2.20.2",
+    "react-native-markdown-display": "^7.0.2",
     "react-native-phone-number-input": "^2.1.0",
     "react-native-reanimated": "3.16.2",
     "react-native-safe-area-context": "4.12.0",

@@ -9,7 +9,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <Stack>
         <Stack.Screen
-          name="index"
+          name="(tabs)"
           options={{
             headerShown: false,
           }}
