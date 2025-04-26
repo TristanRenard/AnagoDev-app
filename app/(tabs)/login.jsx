@@ -113,10 +113,7 @@ const Login = () => {
       startTimer();
       setMessage("Un code OTP vous a été envoyé par email");
     } catch (error) {
-      Alert.alert(
-        "Erreur",
-        error.response?.data?.message || "Erreur lors de l'envoi de l'OTP"
-      );
+      Alert.alert("Erreur", error.response?.data?.message || "Erreur lors de l'envoi de l'OTP");
     } finally {
       setLoading(false);
     }
@@ -133,10 +130,7 @@ const Login = () => {
       startTimer();
       setMessage("Un nouveau code OTP vous a été envoyé");
     } catch (error) {
-      Alert.alert(
-        "Erreur",
-        error.response?.data?.message || "Erreur lors de l'envoi de l'OTP"
-      );
+      Alert.alert("Erreur", error.response?.data?.message || "Erreur lors de l'envoi de l'OTP");
     } finally {
       setLoading(false);
     }
@@ -161,13 +155,11 @@ const Login = () => {
       setOtpModalVisible(false);
 
       Alert.alert("Succès", response.data.message);
-      router.push("/");
+      router.push("/").then(() => {
+        router.reload();
+      });
     } catch (error) {
-      Alert.alert(
-        "Erreur",
-        error.response?.data?.message ||
-          "Une erreur est survenue lors de la connexion"
-      );
+      Alert.alert("Erreur", error.response?.data?.message || "Une erreur est survenue lors de la connexion");
     } finally {
       setLoading(false);
     }
@@ -193,11 +185,7 @@ const Login = () => {
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            {mainErrors.email && (
-              <Text className="text-red-600 mt-1 text-sm">
-                {mainErrors.email.message}
-              </Text>
-            )}
+            {mainErrors.email && <Text className="text-red-600 mt-1 text-sm">{mainErrors.email.message}</Text>}
           </View>
         )}
       />
@@ -214,19 +202,13 @@ const Login = () => {
               onChangeText={onChange}
               secureTextEntry
             />
-            {mainErrors.password && (
-              <Text className="text-red-600 mt-1 text-sm">
-                {mainErrors.password.message}
-              </Text>
-            )}
+            {mainErrors.password && <Text className="text-red-600 mt-1 text-sm">{mainErrors.password.message}</Text>}
           </View>
         )}
       />
 
       <TouchableOpacity
-        className={`rounded-lg p-4 items-center mt-2 ${
-          loading ? "bg-gray-400" : "bg-blue-500"
-        }`}
+        className={`rounded-lg p-4 items-center mt-2 ${loading ? "bg-gray-400" : "bg-purple-600"}`}
         onPress={handleMainSubmit(sendCredentialsAndOTP)}
         disabled={loading}
       >
@@ -245,24 +227,16 @@ const Login = () => {
       >
         <View className="flex-1 justify-center items-center bg-black bg-opacity-50">
           <View className="w-4/5 bg-white rounded-xl p-5 shadow-lg">
-            <Text className="text-xl font-bold mb-4 text-center">
-              Vérification en deux étapes
-            </Text>
+            <Text className="text-xl font-bold mb-4 text-center">Vérification en deux étapes</Text>
 
-            {message && (
-              <Text className="bg-blue-50 p-3 rounded-lg my-3 text-blue-800 text-center">
-                {message}
-              </Text>
-            )}
+            {message && <Text className="bg-purple-50 p-3 rounded-lg my-3 text-purple-600 text-center">{message}</Text>}
 
             <Controller
               control={otpControl}
               name="otp"
               render={({ field: { onChange, value } }) => (
                 <View className="mb-4">
-                  <Text className="mb-2 text-base font-medium">
-                    Entrez le code reçu par email
-                  </Text>
+                  <Text className="mb-2 text-base font-medium">Entrez le code reçu par email</Text>
                   <TextInput
                     className="border border-gray-300 rounded-lg p-3 bg-gray-50 text-lg text-center font-bold tracking-wider"
                     placeholder="Code OTP à 6 chiffres"
@@ -272,29 +246,21 @@ const Login = () => {
                     maxLength={6}
                     autoFocus
                   />
-                  {otpErrors.otp && (
-                    <Text className="text-red-600 mt-1 text-sm">
-                      {otpErrors.otp.message}
-                    </Text>
-                  )}
+                  {otpErrors.otp && <Text className="text-red-600 mt-1 text-sm">{otpErrors.otp.message}</Text>}
                 </View>
               )}
             />
 
             <View className="mt-2">
               <TouchableOpacity
-                className={`rounded-lg p-4 items-center mb-3 ${
-                  loading ? "bg-gray-400" : "bg-blue-500"
-                }`}
+                className={`rounded-lg p-4 items-center mb-3 ${loading ? "bg-gray-400" : "text-purple-600"}`}
                 onPress={handleOtpSubmit(submitOtp)}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <Text className="text-white font-bold text-base">
-                    Valider
-                  </Text>
+                  <Text className="text-white font-bold text-base">Valider</Text>
                 )}
               </TouchableOpacity>
 
@@ -306,19 +272,12 @@ const Login = () => {
                 disabled={remainingTime > 0 || loading}
               >
                 <Text className="text-gray-700 font-bold text-base">
-                  {remainingTime > 0
-                    ? `Renvoyer (${remainingTime}s)`
-                    : "Renvoyer OTP"}
+                  {remainingTime > 0 ? `Renvoyer (${remainingTime}s)` : "Renvoyer OTP"}
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                className="rounded-lg p-4 items-center"
-                onPress={() => setOtpModalVisible(false)}
-              >
-                <Text className="text-red-500 font-bold text-base">
-                  Annuler
-                </Text>
+              <TouchableOpacity className="rounded-lg p-4 items-center" onPress={() => setOtpModalVisible(false)}>
+                <Text className="text-red-500 font-bold text-base">Annuler</Text>
               </TouchableOpacity>
             </View>
           </View>
