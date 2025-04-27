@@ -1,56 +1,63 @@
-import React, { useState, useEffect, useRef } from "react";
-import Constants from "expo-constants";
-import {
-  View,
-  Text,
-  TextInput,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  TouchableOpacity,
-  Modal,
-  Platform,
-  Alert,
-} from "react-native";
-import { useForm, Controller } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
-import axios from "axios";
-import { useRouter } from "expo-router";
+import { yupResolver } from "@hookform/resolvers/yup"
+import { useQueryClient } from "@tanstack/react-query"
+import axios, { AxiosError } from "axios"
+import Constants from "expo-constants"
+import { useRouter } from "expo-router"
+import React, { useEffect, useRef, useState } from "react"
+import { Controller, useForm } from "react-hook-form"
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, View } from "react-native"
+import * as yup from "yup"
 
-const url = Constants.expoConfig?.extra?.apiUrl;
+// Types
+interface LoginFormValues {
+  email: string
+  password: string
+}
+
+interface OtpFormValues {
+  otp: string
+}
+
+interface ApiErrorResponse {
+  message: string
+}
+
+const url = Constants.expoConfig?.extra?.apiUrl as string
 
 const loginSchema = yup.object().shape({
   email: yup.string().email("Email invalide").required("Email requis"),
   password: yup.string().required("Mot de passe requis"),
-});
+})
 
 const otpSchema = yup.object().shape({
   otp: yup
     .string()
     .matches(/^[0-9]{6}$/, "Le code OTP doit contenir 6 chiffres")
     .required("OTP requis"),
-});
+})
 
-const Login = () => {
-  const router = useRouter();
-  const [otpModalVisible, setOtpModalVisible] = useState(false);
-  const [remainingTime, setRemainingTime] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const intervalRef = useRef(null);
+const Login: React.FC = () => {
+  const router = useRouter()
+  const [otpModalVisible, setOtpModalVisible] = useState<boolean>(false)
+  const [remainingTime, setRemainingTime] = useState<number>(0)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [message, setMessage] = useState<string>("")
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const queryClient = useQueryClient()
+
 
   const {
     control: mainControl,
     handleSubmit: handleMainSubmit,
     formState: { errors: mainErrors },
     getValues: getMainValues,
-  } = useForm({
+  } = useForm<LoginFormValues>({
     resolver: yupResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
     },
-  });
+  })
 
   const {
     control: otpControl,
@@ -58,120 +65,128 @@ const Login = () => {
     formState: { errors: otpErrors },
     watch: watchOtp,
     reset: resetOtp,
-  } = useForm({
+  } = useForm<OtpFormValues>({
     resolver: yupResolver(otpSchema),
     defaultValues: {
       otp: "",
     },
-  });
+  })
 
-  const otp = watchOtp("otp");
+  const otp = watchOtp("otp")
 
   useEffect(() => {
     if (otp?.length === 6) {
-      handleOtpSubmit(submitOtp)();
+      handleOtpSubmit(submitOtp)()
     }
-  }, [otp]);
+  }, [otp])
 
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearInterval(intervalRef.current)
       }
-    };
-  }, []);
+    }
+  }, [])
 
-  const startTimer = () => {
+  const startTimer = (): void => {
     if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+      clearInterval(intervalRef.current)
     }
 
-    setRemainingTime(60);
+    setRemainingTime(60)
 
     intervalRef.current = setInterval(() => {
       setRemainingTime((prev) => {
         if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          return 0;
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current)
+          }
+          return 0
         }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+        return prev - 1
+      })
+    }, 1000)
+  }
 
-  const sendCredentialsAndOTP = async (data) => {
-    if (loading) return;
+  const sendCredentialsAndOTP = async (data: LoginFormValues): Promise<void> => {
+    if (loading) return
 
     try {
-      setLoading(true);
-      setMessage("");
+      setLoading(true)
+      setMessage("")
 
-      await axios.post(`${url}/api/user/sendOTP`, { email: data.email });
+      await axios.post(`${url}/api/user/sendOTP`, { email: data.email })
 
-      setOtpModalVisible(true);
-      resetOtp();
-      startTimer();
-      setMessage("Un code OTP vous a été envoyé par email");
+      setOtpModalVisible(true)
+      resetOtp()
+      startTimer()
+      setMessage("Un code OTP vous a été envoyé par email")
     } catch (error) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
       Alert.alert(
         "Erreur",
-        error.response?.data?.message || "Erreur lors de l'envoi de l'OTP"
-      );
+        axiosError.response?.data?.message || "Erreur lors de l'envoi de l'OTP"
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const resendOTP = async () => {
-    if (remainingTime > 0 || loading) return;
+  const resendOTP = async (): Promise<void> => {
+    if (remainingTime > 0 || loading) return
 
     try {
-      setLoading(true);
-      const email = getMainValues("email");
-      await axios.post(`${url}/api/user/sendOTP`, { email });
+      setLoading(true)
+      const email = getMainValues("email")
+      await axios.post(`${url}/api/user/sendOTP`, { email })
 
-      startTimer();
-      setMessage("Un nouveau code OTP vous a été envoyé");
+      startTimer()
+      setMessage("Un nouveau code OTP vous a été envoyé")
     } catch (error) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
       Alert.alert(
         "Erreur",
-        error.response?.data?.message || "Erreur lors de l'envoi de l'OTP"
-      );
+        axiosError.response?.data?.message || "Erreur lors de l'envoi de l'OTP"
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const submitOtp = async (otpData) => {
-    if (loading) return;
+  const submitOtp = async (otpData: OtpFormValues): Promise<void> => {
+    if (loading) return
 
     try {
-      setLoading(true);
-      const { email, password } = getMainValues();
-      const { otp } = otpData;
+      setLoading(true)
+      const { email, password } = getMainValues()
+      const { otp } = otpData
 
       const loginData = {
         email,
         password,
         otp,
-      };
+      }
 
-      const response = await axios.post(`${url}/api/user/login`, loginData);
+      const response = await axios.post<{ message: string }>(`${url}/api/user/login`, loginData)
 
-      setOtpModalVisible(false);
+      setOtpModalVisible(false)
 
-      Alert.alert("Succès", response.data.message);
-      router.push("/");
+      Alert.alert("Succès", response.data.message)
+      queryClient.invalidateQueries({ queryKey: ["user"] })
+      queryClient.invalidateQueries({ queryKey: ["user"] })
+      router.push("/")
     } catch (error) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
+      setOtpModalVisible(false)
       Alert.alert(
         "Erreur",
-        error.response?.data?.message ||
-          "Une erreur est survenue lors de la connexion"
-      );
+        axiosError.response?.data?.message ||
+        "Une erreur est survenue lors de la connexion"
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <KeyboardAvoidingView
@@ -224,9 +239,7 @@ const Login = () => {
       />
 
       <TouchableOpacity
-        className={`rounded-lg p-4 items-center mt-2 ${
-          loading ? "bg-gray-400" : "bg-blue-500"
-        }`}
+        className={`rounded-lg p-4 items-center mt-2 ${loading ? "bg-gray-400" : "bg-blue-500"}`}
         onPress={handleMainSubmit(sendCredentialsAndOTP)}
         disabled={loading}
       >
@@ -243,7 +256,7 @@ const Login = () => {
         visible={otpModalVisible}
         onRequestClose={() => setOtpModalVisible(false)}
       >
-        <View className="flex-1 justify-center items-center bg-black bg-opacity-50">
+        <View className="flex-1 justify-center items-center  bg-opacity-50">
           <View className="w-4/5 bg-white rounded-xl p-5 shadow-lg">
             <Text className="text-xl font-bold mb-4 text-center">
               Vérification en deux étapes
@@ -283,9 +296,7 @@ const Login = () => {
 
             <View className="mt-2">
               <TouchableOpacity
-                className={`rounded-lg p-4 items-center mb-3 ${
-                  loading ? "bg-gray-400" : "bg-blue-500"
-                }`}
+                className={`rounded-lg p-4 items-center mb-3 ${loading ? "bg-gray-400" : "bg-blue-500"}`}
                 onPress={handleOtpSubmit(submitOtp)}
                 disabled={loading}
               >
@@ -299,9 +310,7 @@ const Login = () => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                className={`rounded-lg p-4 items-center mb-3 ${
-                  remainingTime > 0 || loading ? "bg-gray-200" : "bg-gray-100"
-                } border border-gray-300`}
+                className={`rounded-lg p-4 items-center mb-3 ${remainingTime > 0 || loading ? "bg-gray-200" : "bg-gray-100"} border border-gray-300`}
                 onPress={resendOTP}
                 disabled={remainingTime > 0 || loading}
               >
@@ -325,7 +334,7 @@ const Login = () => {
         </View>
       </Modal>
     </KeyboardAvoidingView>
-  );
-};
+  )
+}
 
-export default Login;
+export default Login
