@@ -234,7 +234,7 @@ const Home = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView edges={['top']} className="flex-1 bg-gray-50">
       <ScrollView>
         {/* Header */}
         <View className="flex w-full items-center justify-start py-4">
@@ -276,7 +276,7 @@ const Home = () => {
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={{ paddingLeft: 16, paddingRight: 8 }}
                     >
-                      {products.map((product) => (
+                      {products.filter((product) => product.category?.id === category.id).map((product) => (
                         <ProductItem
                           key={`product-${product.id}`}
                           product={product}

@@ -188,7 +188,7 @@ const Products = () => {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView className="flex-1 bg-gray-100">
+      <SafeAreaView edges={['top']} className="flex-1 bg-gray-100">
         {/* Products list */}
         <ScrollView>
           <View className="flex w-full items-center justify-start py-8">
