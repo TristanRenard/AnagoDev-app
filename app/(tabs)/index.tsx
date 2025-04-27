@@ -91,7 +91,7 @@ const ProductItem = ({ product, onPress }: ProductItemProps) => {
       currency: currency.toUpperCase(),
     })
 
-    return formatter.format(price / 100)
+    return formatter.format(price)
   }
 
   // Truncate text

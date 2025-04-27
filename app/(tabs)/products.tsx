@@ -170,7 +170,7 @@ const Products = () => {
       currency: currency.toUpperCase(),
     })
 
-    return formatter.format(price / 100)
+    return formatter.format(price)
   }
 
   // Truncate text to a certain number of characters
