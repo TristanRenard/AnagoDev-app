@@ -239,7 +239,7 @@ const Login: React.FC = () => {
       />
 
       <TouchableOpacity
-        className={`rounded-lg p-4 items-center mt-2 ${loading ? "bg-gray-400" : "bg-blue-500"}`}
+        className={`rounded-lg p-4 items-center mt-2 ${loading ? "bg-gray-400" : "bg-purple-500"}`}
         onPress={handleMainSubmit(sendCredentialsAndOTP)}
         disabled={loading}
       >
@@ -263,7 +263,7 @@ const Login: React.FC = () => {
             </Text>
 
             {message && (
-              <Text className="bg-blue-50 p-3 rounded-lg my-3 text-blue-800 text-center">
+              <Text className="bg-purple-50 p-3 rounded-lg my-3 text-purple-800 text-center">
                 {message}
               </Text>
             )}
@@ -296,7 +296,7 @@ const Login: React.FC = () => {
 
             <View className="mt-2">
               <TouchableOpacity
-                className={`rounded-lg p-4 items-center mb-3 ${loading ? "bg-gray-400" : "bg-blue-500"}`}
+                className={`rounded-lg p-4 items-center mb-3 ${loading ? "bg-gray-400" : "bg-purple-500"}`}
                 onPress={handleOtpSubmit(submitOtp)}
                 disabled={loading}
               >
