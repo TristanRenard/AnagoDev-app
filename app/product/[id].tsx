@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import axios from "axios";
 import Constants from "expo-constants";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -181,10 +182,23 @@ const ProductDetail = () => {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
+  const selectedPrice = product?.prices?.[0]?.id;
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleAddToCart = async () => {
+    try {
+      await axios.post(`${url}/api/cart`, {
+        selectedPrice,
+        action: "add",
+      });
+      router.push("/cart");
+    } catch (error) {
+      return;
+    }
+  };
 
   // Format price with currency symbol
   const formatPrice = (price: number, currency: string) => {
@@ -339,6 +353,7 @@ const ProductDetail = () => {
 
             {/* Add to cart button */}
             <TouchableOpacity
+              onPress={handleAddToCart}
               className={`py-3 px-4 rounded-lg ${
                 product.stock > 0 || product.stock === -1 ? "bg-purple-500" : "bg-gray-400"
               } mb-8`}
